@@ -1,0 +1,16 @@
+ASSET_BUCKETS = {
+    "ftse developed world ex uk equity index fund": "Developed World ex UK Equity",
+    "global bond index fund hedged": "Global Bonds Hedged",
+    "us equity index fund": "US Equity",
+    "ftse uk all share index unit trust": "UK Equity",
+    "emerging markets stock index fund": "Emerging Markets Equity",
+    "ftse north america ucits etf": "US Equity",
+    "uk government bond index fund": "UK Government Bonds",
+    "ftse 100 ucits etf": "UK Equity",
+    "ftse developed europe ex uk equity index fund": "Europe ex UK Equity",
+    "japan stock index fund": "Japan Equity",
+    "uk investment grade bond index fund": "UK Investment Grade Bonds",
+    "pacific ex japan stock index fund": "Pacific ex Japan Equity",
+    "s p 500 ucits etf": "US Equity",
+    "global short term bond index fund hedged": "Global Bonds Hedged",
+}
