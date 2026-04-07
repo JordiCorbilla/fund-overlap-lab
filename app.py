@@ -21,7 +21,16 @@ def load_product_options() -> list[dict]:
     options = p.list_products()
     for item in options:
         ref = item["ticker"] or item["sedol"] or item["slug"]
-        item["label"] = f"{item['name']} ({ref})"
+        share_class = (item.get("share_class") or "").strip()
+        if not share_class:
+            slug = item.get("slug", "").lower()
+            if "accumulation" in slug:
+                share_class = "Accumulation"
+            elif "income" in slug:
+                share_class = "Income"
+
+        suffix = f" - {share_class}" if share_class else ""
+        item["label"] = f"{item['name']}{suffix} ({ref})"
     return options
 
 

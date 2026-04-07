@@ -124,6 +124,7 @@ query UnderlyingFundNamesQuery($sedols: [String!]) {
             slug = str(item.get("id") or "").strip()
             ticker = str(item.get("ticker") or "").strip().upper()
             sedol = str(item.get("sedol") or "").strip().upper()
+            share_class = str(item.get("shareClass") or "").strip()
 
             if not slug:
                 continue
@@ -139,6 +140,7 @@ query UnderlyingFundNamesQuery($sedols: [String!]) {
                     "ticker": ticker,
                     "sedol": sedol,
                     "slug": slug,
+                    "share_class": share_class,
                 }
             )
 
