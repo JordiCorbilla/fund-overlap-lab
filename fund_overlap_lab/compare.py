@@ -30,6 +30,8 @@ def compare_funds(a: FundHoldings, b: FundHoldings) -> dict:
         "as_of_b": b.as_of,
         "risk_a": a.risk_level,
         "risk_b": b.risk_level,
+        "ocf_a": a.ocf,
+        "ocf_b": b.ocf,
         "wrapper_overlap_pct": round(float(common["overlap_pct"].sum()), 4),
         "distinct_count_a": int((merged["weight_a"] > 0).sum()),
         "distinct_count_b": int((merged["weight_b"] > 0).sum()),

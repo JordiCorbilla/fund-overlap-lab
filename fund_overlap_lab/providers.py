@@ -74,6 +74,7 @@ query UnderlyingFundNamesQuery($sedols: [String!]) {
             name = str(gpx_result.get("name") or "Unknown Fund")
             as_of = gpx_result.get("as_of")
             risk_level = gpx_result.get("risk_level")
+            ocf = gpx_result.get("ocf")
             holdings = gpx_result["holdings"]
         else:
             html = self._fetch_html(url)
@@ -82,6 +83,7 @@ query UnderlyingFundNamesQuery($sedols: [String!]) {
             name = self._extract_title(soup)
             as_of = self._extract_as_of(soup)
             risk_level = None
+            ocf = None
             try:
                 holdings = self._extract_underlying_table(soup)
             except ValueError:
@@ -91,6 +93,7 @@ query UnderlyingFundNamesQuery($sedols: [String!]) {
 
                 holdings = api_fallback["holdings"]
                 risk_level = api_fallback.get("risk_level")
+                ocf = api_fallback.get("ocf")
                 if (
                     (name == "Unknown Fund" or "Personal Investing in the UK" in name)
                     and api_fallback.get("name")
@@ -108,6 +111,7 @@ query UnderlyingFundNamesQuery($sedols: [String!]) {
             as_of=as_of,
             holdings=holdings[["fund_name", "weight_pct", "fund_name_norm"]].copy(),
             risk_level=risk_level,
+            ocf=ocf,
         )
 
     def list_products(self) -> list[dict]:
@@ -213,11 +217,13 @@ query UnderlyingFundNamesQuery($sedols: [String!]) {
 
         fund_data = None
         risk_level = None
+        ocf = None
         try:
             data = self._fetch_json(f"{self.API_BASE}/funds/{port_id}")
             if isinstance(data, dict):
                 fund_data = data
                 risk_level = self._extract_risk_level(data)
+                ocf = self._extract_ocf(data)
         except Exception:
             pass
 
@@ -292,6 +298,7 @@ query UnderlyingFundNamesQuery($sedols: [String!]) {
             "name": (fund_data or {}).get("name") or product.get("name"),
             "as_of": as_of,
             "risk_level": risk_level,
+            "ocf": ocf,
             "holdings": out,
         }
 
@@ -378,6 +385,7 @@ query UnderlyingFundNamesQuery($sedols: [String!]) {
             "name": fund_data.get("name") or product.get("name"),
             "as_of": fund_data.get("totalAssetsAsOfDate"),
             "risk_level": self._extract_risk_level(fund_data),
+            "ocf": self._extract_ocf(fund_data),
             "holdings": holdings,
         }
 
@@ -393,6 +401,16 @@ query UnderlyingFundNamesQuery($sedols: [String!]) {
             return int(value)
         except (TypeError, ValueError):
             return None
+
+    @staticmethod
+    def _extract_ocf(fund_data: dict) -> str | None:
+        if not isinstance(fund_data, dict):
+            return None
+        value = fund_data.get("OCF")
+        if value is None:
+            return None
+        text = str(value).strip()
+        return text if text else None
 
     def _lookup_product_by_slug(self, slug: str) -> dict | None:
         try:

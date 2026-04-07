@@ -44,12 +44,16 @@ def render_summary_html(summary: dict) -> str:
         as_of_b = html.escape(str(summary.get("as_of_b", "")))
         risk_a = summary.get("risk_a")
         risk_b = summary.get("risk_b")
+        ocf_a = html.escape(str(summary.get("ocf_a", "") or "n/a"))
+        ocf_b = html.escape(str(summary.get("ocf_b", "") or "n/a"))
         distinct_a = int(summary.get("distinct_count_a", 0))
         distinct_b = int(summary.get("distinct_count_b", 0))
         shared = int(summary.get("shared_count", 0))
 
         risk_a_text = f"Risk: {risk_a}/7" if risk_a is not None else "Risk: n/a"
         risk_b_text = f"Risk: {risk_b}/7" if risk_b is not None else "Risk: n/a"
+        cost_a_text = f"Cost (OCF): {ocf_a}"
+        cost_b_text = f"Cost (OCF): {ocf_b}"
 
         html_doc = textwrap.dedent(f"""
         <style>
@@ -58,7 +62,7 @@ def render_summary_html(summary: dict) -> str:
                 border-radius: 14px;
                 background: linear-gradient(160deg, #f8fafc 0%, #eef5fb 100%);
                 padding: 18px 20px;
-                margin-bottom: 12px;
+                margin-bottom: 18px;
             }}
             .summary-title {{
                 font-size: 1.05rem;
@@ -100,6 +104,11 @@ def render_summary_html(summary: dict) -> str:
                 color: #274d66;
                 font-size: 0.82rem;
                 font-weight: 600;
+            }}
+            .summary-cost {{
+                margin-top: 2px;
+                color: #36596f;
+                font-size: 0.8rem;
             }}
             .summary-vs {{
                 font-size: 0.78rem;
@@ -163,6 +172,7 @@ def render_summary_html(summary: dict) -> str:
                     <div class="summary-name">{fund_a_name}</div>
                     <div class="summary-date">As of: {as_of_a}</div>
                     <div class="summary-risk">{risk_a_text}</div>
+                    <div class="summary-cost">{cost_a_text}</div>
                 </div>
                 <div class="summary-vs">vs</div>
                 <div class="summary-fund">
@@ -170,6 +180,7 @@ def render_summary_html(summary: dict) -> str:
                     <div class="summary-name">{fund_b_name}</div>
                     <div class="summary-date">As of: {as_of_b}</div>
                     <div class="summary-risk">{risk_b_text}</div>
+                    <div class="summary-cost">{cost_b_text}</div>
                 </div>
             </div>
 
@@ -243,7 +254,7 @@ if st.button("Compare", type="primary"):
         buckets = compare_by_bucket(a, b)
 
         st.subheader("Summary")
-        components.html(render_summary_html(result["summary"]), height=320, scrolling=False)
+        components.html(render_summary_html(result["summary"]), height=380, scrolling=False)
 
         c1, c2 = st.columns(2)
         with c1:

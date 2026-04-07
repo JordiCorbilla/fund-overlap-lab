@@ -14,3 +14,4 @@ class FundHoldings:
     as_of: Optional[str]
     holdings: pd.DataFrame
     risk_level: Optional[int] = None
+    ocf: Optional[str] = None
