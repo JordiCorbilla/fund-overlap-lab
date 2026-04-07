@@ -73,6 +73,7 @@ query UnderlyingFundNamesQuery($sedols: [String!]) {
         if gpx_result is not None:
             name = str(gpx_result.get("name") or "Unknown Fund")
             as_of = gpx_result.get("as_of")
+            risk_level = gpx_result.get("risk_level")
             holdings = gpx_result["holdings"]
         else:
             html = self._fetch_html(url)
@@ -80,6 +81,7 @@ query UnderlyingFundNamesQuery($sedols: [String!]) {
 
             name = self._extract_title(soup)
             as_of = self._extract_as_of(soup)
+            risk_level = None
             try:
                 holdings = self._extract_underlying_table(soup)
             except ValueError:
@@ -88,6 +90,7 @@ query UnderlyingFundNamesQuery($sedols: [String!]) {
                     raise
 
                 holdings = api_fallback["holdings"]
+                risk_level = api_fallback.get("risk_level")
                 if (
                     (name == "Unknown Fund" or "Personal Investing in the UK" in name)
                     and api_fallback.get("name")
@@ -104,6 +107,7 @@ query UnderlyingFundNamesQuery($sedols: [String!]) {
             source_url=url,
             as_of=as_of,
             holdings=holdings[["fund_name", "weight_pct", "fund_name_norm"]].copy(),
+            risk_level=risk_level,
         )
 
     def list_products(self) -> list[dict]:
@@ -205,6 +209,16 @@ query UnderlyingFundNamesQuery($sedols: [String!]) {
         if port_id is None:
             return None
 
+        fund_data = None
+        risk_level = None
+        try:
+            data = self._fetch_json(f"{self.API_BASE}/funds/{port_id}")
+            if isinstance(data, dict):
+                fund_data = data
+                risk_level = self._extract_risk_level(data)
+        except Exception:
+            pass
+
         gpx_url = f"{urlparse(fund_url).scheme}://{urlparse(fund_url).netloc}{self.GPX_PATH}"
 
         try:
@@ -273,8 +287,9 @@ query UnderlyingFundNamesQuery($sedols: [String!]) {
         out = out.sort_values("weight_pct", ascending=False).reset_index(drop=True)
 
         return {
-            "name": product.get("name"),
+            "name": (fund_data or {}).get("name") or product.get("name"),
             "as_of": as_of,
+            "risk_level": risk_level,
             "holdings": out,
         }
 
@@ -360,8 +375,22 @@ query UnderlyingFundNamesQuery($sedols: [String!]) {
         return {
             "name": fund_data.get("name") or product.get("name"),
             "as_of": fund_data.get("totalAssetsAsOfDate"),
+            "risk_level": self._extract_risk_level(fund_data),
             "holdings": holdings,
         }
+
+    @staticmethod
+    def _extract_risk_level(fund_data: dict) -> int | None:
+        if not isinstance(fund_data, dict):
+            return None
+        risk = fund_data.get("risk")
+        if not isinstance(risk, dict):
+            return None
+        value = risk.get("value")
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return None
 
     def _lookup_product_by_slug(self, slug: str) -> dict | None:
         try:

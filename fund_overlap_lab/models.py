@@ -13,3 +13,4 @@ class FundHoldings:
     source_url: str
     as_of: Optional[str]
     holdings: pd.DataFrame
+    risk_level: Optional[int] = None

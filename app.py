@@ -33,9 +33,14 @@ def render_summary_html(summary: dict) -> str:
         fund_b_name = html.escape(str(summary.get("fund_b_name", "")))
         as_of_a = html.escape(str(summary.get("as_of_a", "")))
         as_of_b = html.escape(str(summary.get("as_of_b", "")))
+        risk_a = summary.get("risk_a")
+        risk_b = summary.get("risk_b")
         distinct_a = int(summary.get("distinct_count_a", 0))
         distinct_b = int(summary.get("distinct_count_b", 0))
         shared = int(summary.get("shared_count", 0))
+
+        risk_a_text = f"Risk: {risk_a}/7" if risk_a is not None else "Risk: n/a"
+        risk_b_text = f"Risk: {risk_b}/7" if risk_b is not None else "Risk: n/a"
 
         html_doc = textwrap.dedent(f"""
         <style>
@@ -80,6 +85,12 @@ def render_summary_html(summary: dict) -> str:
                 margin-top: 5px;
                 color: #4d5f72;
                 font-size: 0.82rem;
+            }}
+            .summary-risk {{
+                margin-top: 3px;
+                color: #274d66;
+                font-size: 0.82rem;
+                font-weight: 600;
             }}
             .summary-vs {{
                 font-size: 0.78rem;
@@ -142,12 +153,14 @@ def render_summary_html(summary: dict) -> str:
                     <div class="summary-ticker">{fund_a}</div>
                     <div class="summary-name">{fund_a_name}</div>
                     <div class="summary-date">As of: {as_of_a}</div>
+                    <div class="summary-risk">{risk_a_text}</div>
                 </div>
                 <div class="summary-vs">vs</div>
                 <div class="summary-fund">
                     <div class="summary-ticker">{fund_b}</div>
                     <div class="summary-name">{fund_b_name}</div>
                     <div class="summary-date">As of: {as_of_b}</div>
+                    <div class="summary-risk">{risk_b_text}</div>
                 </div>
             </div>
 
