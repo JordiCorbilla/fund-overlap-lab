@@ -23,6 +23,11 @@ class VanguardUKProvider:
         "VAR45GA": "https://www.vanguardinvestor.co.uk/investments/vanguard-target-retirement-2045-fund-accumulation-shares/portfolio-data",
     }
 
+    # Common shorthand/legacy aliases seen in user input.
+    TICKER_ALIASES: Dict[str, str] = {
+        "VL100AG": "VGL100A",
+    }
+
     HEADERS = {
         "User-Agent": (
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -63,12 +68,7 @@ query UnderlyingFundNamesQuery($sedols: [String!]) {
 """
 
     def get_holdings(self, ticker: str) -> FundHoldings:
-        ticker = ticker.upper().strip()
-        if ticker not in self.FUND_URLS:
-            supported = ", ".join(sorted(self.FUND_URLS))
-            raise KeyError(f"Unsupported ticker '{ticker}'. Supported: {supported}")
-
-        url = self.FUND_URLS[ticker]
+        ticker, url = self._resolve_ticker_and_url(ticker)
         gpx_result = self._extract_holdings_from_gpx(url)
         if gpx_result is not None:
             name = str(gpx_result.get("name") or "Unknown Fund")
@@ -105,6 +105,77 @@ query UnderlyingFundNamesQuery($sedols: [String!]) {
             as_of=as_of,
             holdings=holdings[["fund_name", "weight_pct", "fund_name_norm"]].copy(),
         )
+
+    def list_products(self) -> list[dict]:
+        products = self._fetch_json(f"{self.API_BASE}/productList")
+        if not isinstance(products, list):
+            return []
+
+        out: list[dict] = []
+        for item in products:
+            if not isinstance(item, dict):
+                continue
+
+            name = str(item.get("name") or "").strip()
+            slug = str(item.get("id") or "").strip()
+            ticker = str(item.get("ticker") or "").strip().upper()
+            sedol = str(item.get("sedol") or "").strip().upper()
+
+            if not slug:
+                continue
+
+            code = ticker or sedol or slug
+            if not code:
+                continue
+
+            out.append(
+                {
+                    "code": code,
+                    "name": name or slug,
+                    "ticker": ticker,
+                    "sedol": sedol,
+                    "slug": slug,
+                }
+            )
+
+        out.sort(key=lambda p: (p["name"].lower(), p["code"]))
+        return out
+
+    def _resolve_ticker_and_url(self, ticker: str) -> tuple[str, str]:
+        requested = ticker.upper().strip()
+        resolved = self.TICKER_ALIASES.get(requested, requested)
+
+        if resolved in self.FUND_URLS:
+            return resolved, self.FUND_URLS[resolved]
+
+        product = self._lookup_product_by_code(resolved)
+        if product is not None:
+            slug = str(product.get("id") or "").strip()
+            if slug:
+                return resolved, f"https://www.vanguardinvestor.co.uk/investments/{slug}/portfolio-data"
+
+        supported = ", ".join(sorted(self.FUND_URLS))
+        raise KeyError(f"Unsupported ticker '{requested}'. Supported examples: {supported}")
+
+    def _lookup_product_by_code(self, code: str) -> dict | None:
+        try:
+            products = self._fetch_json(f"{self.API_BASE}/productList")
+        except Exception:
+            return None
+
+        if not isinstance(products, list):
+            return None
+
+        code_upper = code.upper().strip()
+        for item in products:
+            if not isinstance(item, dict):
+                continue
+            sedol = str(item.get("sedol") or "").upper().strip()
+            ticker = str(item.get("ticker") or "").upper().strip()
+            slug = str(item.get("id") or "").upper().strip()
+            if code_upper in {sedol, ticker, slug}:
+                return item
+        return None
 
     def _fetch_html(self, url: str) -> str:
         response = requests.get(url, headers=self.HEADERS, timeout=30)

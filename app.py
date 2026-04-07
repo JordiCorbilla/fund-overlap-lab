@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import html
+import textwrap
 
 import streamlit as st
+import streamlit.components.v1 as components
 
 from fund_overlap_lab.compare import compare_by_bucket, compare_funds
 from fund_overlap_lab.providers import VanguardUKProvider
@@ -11,6 +13,16 @@ from fund_overlap_lab.providers import VanguardUKProvider
 st.set_page_config(page_title="Fund Overlap Lab", layout="wide")
 st.title("Fund Overlap Lab")
 st.caption("Wrapper fund overlap analysis for Vanguard UK funds")
+
+
+@st.cache_data(ttl=3600)
+def load_product_options() -> list[dict]:
+    p = VanguardUKProvider()
+    options = p.list_products()
+    for item in options:
+        ref = item["ticker"] or item["sedol"] or item["slug"]
+        item["label"] = f"{item['name']} ({ref})"
+    return options
 
 
 def render_summary_html(summary: dict) -> str:
@@ -25,149 +37,180 @@ def render_summary_html(summary: dict) -> str:
         distinct_b = int(summary.get("distinct_count_b", 0))
         shared = int(summary.get("shared_count", 0))
 
-        return f"""
-<style>
-    .summary-card {{
-        border: 1px solid #d6dbe1;
-        border-radius: 14px;
-        background: linear-gradient(160deg, #f8fafc 0%, #eef5fb 100%);
-        padding: 18px 20px;
-        margin-bottom: 12px;
-    }}
-    .summary-title {{
-        font-size: 1.05rem;
-        font-weight: 700;
-        margin-bottom: 10px;
-        color: #153a59;
-    }}
-    .summary-pair {{
-        display: grid;
-        grid-template-columns: 1fr auto 1fr;
-        gap: 10px;
-        align-items: center;
-        margin-bottom: 14px;
-    }}
-    .summary-fund {{
-        background: #ffffff;
-        border: 1px solid #dce5ee;
-        border-radius: 10px;
-        padding: 10px 12px;
-    }}
-    .summary-ticker {{
-        font-size: 0.86rem;
-        font-weight: 700;
-        color: #174f73;
-        letter-spacing: 0.02em;
-    }}
-    .summary-name {{
-        font-size: 0.95rem;
-        color: #1f2d3d;
-        margin-top: 3px;
-    }}
-    .summary-date {{
-        margin-top: 5px;
-        color: #4d5f72;
-        font-size: 0.82rem;
-    }}
-    .summary-vs {{
-        font-size: 0.78rem;
-        font-weight: 700;
-        color: #4b6178;
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
-    }}
-    .summary-overlap {{
-        background: #153a59;
-        color: #ffffff;
-        border-radius: 10px;
-        padding: 12px;
-        margin-bottom: 12px;
-        text-align: center;
-    }}
-    .summary-overlap-value {{
-        font-size: 1.55rem;
-        font-weight: 800;
-        line-height: 1;
-    }}
-    .summary-overlap-label {{
-        font-size: 0.8rem;
-        opacity: 0.9;
-        margin-top: 4px;
-        letter-spacing: 0.03em;
-        text-transform: uppercase;
-    }}
-    .summary-metrics {{
-        display: grid;
-        grid-template-columns: repeat(3, minmax(120px, 1fr));
-        gap: 8px;
-    }}
-    .summary-metric {{
-        background: #ffffff;
-        border: 1px solid #dce5ee;
-        border-radius: 10px;
-        padding: 10px;
-        text-align: center;
-    }}
-    .summary-metric-value {{
-        font-size: 1.2rem;
-        font-weight: 700;
-        color: #12273a;
-        line-height: 1;
-    }}
-    .summary-metric-label {{
-        margin-top: 5px;
-        font-size: 0.76rem;
-        color: #4b6178;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-    }}
-</style>
+        html_doc = textwrap.dedent(f"""
+        <style>
+            .summary-card {{
+                border: 1px solid #d6dbe1;
+                border-radius: 14px;
+                background: linear-gradient(160deg, #f8fafc 0%, #eef5fb 100%);
+                padding: 18px 20px;
+                margin-bottom: 12px;
+            }}
+            .summary-title {{
+                font-size: 1.05rem;
+                font-weight: 700;
+                margin-bottom: 10px;
+                color: #153a59;
+            }}
+            .summary-pair {{
+                display: grid;
+                grid-template-columns: 1fr auto 1fr;
+                gap: 10px;
+                align-items: center;
+                margin-bottom: 14px;
+            }}
+            .summary-fund {{
+                background: #ffffff;
+                border: 1px solid #dce5ee;
+                border-radius: 10px;
+                padding: 10px 12px;
+            }}
+            .summary-ticker {{
+                font-size: 0.86rem;
+                font-weight: 700;
+                color: #174f73;
+                letter-spacing: 0.02em;
+            }}
+            .summary-name {{
+                font-size: 0.95rem;
+                color: #1f2d3d;
+                margin-top: 3px;
+            }}
+            .summary-date {{
+                margin-top: 5px;
+                color: #4d5f72;
+                font-size: 0.82rem;
+            }}
+            .summary-vs {{
+                font-size: 0.78rem;
+                font-weight: 700;
+                color: #4b6178;
+                text-transform: uppercase;
+                letter-spacing: 0.08em;
+            }}
+            .summary-overlap {{
+                background: #153a59;
+                color: #ffffff;
+                border-radius: 10px;
+                padding: 12px;
+                margin-bottom: 12px;
+                text-align: center;
+            }}
+            .summary-overlap-value {{
+                font-size: 1.55rem;
+                font-weight: 800;
+                line-height: 1;
+            }}
+            .summary-overlap-label {{
+                font-size: 0.8rem;
+                opacity: 0.9;
+                margin-top: 4px;
+                letter-spacing: 0.03em;
+                text-transform: uppercase;
+            }}
+            .summary-metrics {{
+                display: grid;
+                grid-template-columns: repeat(3, minmax(120px, 1fr));
+                gap: 8px;
+            }}
+            .summary-metric {{
+                background: #ffffff;
+                border: 1px solid #dce5ee;
+                border-radius: 10px;
+                padding: 10px;
+                text-align: center;
+            }}
+            .summary-metric-value {{
+                font-size: 1.2rem;
+                font-weight: 700;
+                color: #12273a;
+                line-height: 1;
+            }}
+            .summary-metric-label {{
+                margin-top: 5px;
+                font-size: 0.76rem;
+                color: #4b6178;
+                text-transform: uppercase;
+                letter-spacing: 0.05em;
+            }}
+        </style>
 
-<div class="summary-card">
-    <div class="summary-title">Comparison Summary</div>
-    <div class="summary-pair">
-        <div class="summary-fund">
-            <div class="summary-ticker">{fund_a}</div>
-            <div class="summary-name">{fund_a_name}</div>
-            <div class="summary-date">As of: {as_of_a}</div>
-        </div>
-        <div class="summary-vs">vs</div>
-        <div class="summary-fund">
-            <div class="summary-ticker">{fund_b}</div>
-            <div class="summary-name">{fund_b_name}</div>
-            <div class="summary-date">As of: {as_of_b}</div>
-        </div>
-    </div>
+        <div class="summary-card">
+            <div class="summary-title">Comparison Summary</div>
+            <div class="summary-pair">
+                <div class="summary-fund">
+                    <div class="summary-ticker">{fund_a}</div>
+                    <div class="summary-name">{fund_a_name}</div>
+                    <div class="summary-date">As of: {as_of_a}</div>
+                </div>
+                <div class="summary-vs">vs</div>
+                <div class="summary-fund">
+                    <div class="summary-ticker">{fund_b}</div>
+                    <div class="summary-name">{fund_b_name}</div>
+                    <div class="summary-date">As of: {as_of_b}</div>
+                </div>
+            </div>
 
-    <div class="summary-overlap">
-        <div class="summary-overlap-value">{overlap:.2f}%</div>
-        <div class="summary-overlap-label">Wrapper Overlap</div>
-    </div>
+            <div class="summary-overlap">
+                <div class="summary-overlap-value">{overlap:.2f}%</div>
+                <div class="summary-overlap-label">Wrapper Overlap</div>
+            </div>
 
-    <div class="summary-metrics">
-        <div class="summary-metric">
-            <div class="summary-metric-value">{distinct_a}</div>
-            <div class="summary-metric-label">Distinct A</div>
+            <div class="summary-metrics">
+                <div class="summary-metric">
+                    <div class="summary-metric-value">{distinct_a}</div>
+                    <div class="summary-metric-label">Distinct A</div>
+                </div>
+                <div class="summary-metric">
+                    <div class="summary-metric-value">{shared}</div>
+                    <div class="summary-metric-label">Shared</div>
+                </div>
+                <div class="summary-metric">
+                    <div class="summary-metric-value">{distinct_b}</div>
+                    <div class="summary-metric-label">Distinct B</div>
+                </div>
+            </div>
         </div>
-        <div class="summary-metric">
-            <div class="summary-metric-value">{shared}</div>
-            <div class="summary-metric-label">Shared</div>
-        </div>
-        <div class="summary-metric">
-            <div class="summary-metric-value">{distinct_b}</div>
-            <div class="summary-metric-label">Distinct B</div>
-        </div>
-    </div>
-</div>
-"""
+        """).strip()
+        return html_doc
 
 provider = VanguardUKProvider()
+product_options = load_product_options()
 
-col1, col2 = st.columns(2)
-with col1:
-    ticker_a = st.text_input("Fund A", value="VGL100A")
-with col2:
-    ticker_b = st.text_input("Fund B", value="VAR45GA")
+use_picker = st.toggle("Use All Vanguard Products Picker", value=bool(product_options))
+
+if use_picker and product_options:
+    st.caption("Search and select from Vanguard's full product list. You can still override with manual code input.")
+    labels = [item["label"] for item in product_options]
+    default_a = 0
+    default_b = min(1, len(product_options) - 1)
+    for i, item in enumerate(product_options):
+        slug = item["slug"]
+        if item["code"] == "VGL100A" or slug == "vanguard-lifestrategy-100-equity-fund-accumulation-shares":
+            default_a = i
+        if item["code"] == "VAR45GA" or slug == "vanguard-target-retirement-2045-fund-accumulation-shares":
+            default_b = i
+
+    col1, col2 = st.columns(2)
+    with col1:
+        picked_a = st.selectbox("Fund A", options=labels, index=default_a)
+        ticker_a_override = st.text_input("Fund A manual code (optional)", value="")
+    with col2:
+        picked_b = st.selectbox("Fund B", options=labels, index=default_b)
+        ticker_b_override = st.text_input("Fund B manual code (optional)", value="")
+
+    selected_a = product_options[labels.index(picked_a)]
+    selected_b = product_options[labels.index(picked_b)]
+    ticker_a = (ticker_a_override.strip() or selected_a["code"]).upper()
+    ticker_b = (ticker_b_override.strip() or selected_b["code"]).upper()
+else:
+    if use_picker and not product_options:
+        st.warning("Could not load product list, falling back to manual code entry.")
+    col1, col2 = st.columns(2)
+    with col1:
+        ticker_a = st.text_input("Fund A", value="VGL100A")
+    with col2:
+        ticker_b = st.text_input("Fund B", value="VAR45GA")
 
 if st.button("Compare", type="primary"):
     try:
@@ -178,7 +221,7 @@ if st.button("Compare", type="primary"):
         buckets = compare_by_bucket(a, b)
 
         st.subheader("Summary")
-        st.markdown(render_summary_html(result["summary"]), unsafe_allow_html=True)
+        components.html(render_summary_html(result["summary"]), height=320, scrolling=False)
 
         c1, c2 = st.columns(2)
         with c1:
