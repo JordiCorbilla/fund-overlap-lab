@@ -438,6 +438,21 @@ def run_two_fund_compare_tab(provider: VanguardUKProvider, product_options: list
 def run_portfolio_tab(provider: VanguardUKProvider, product_options: list[dict]) -> None:
     st.caption("Analyze 3-12+ funds together and see overlap matrix plus weighted portfolio exposures.")
 
+    key_to_fund_name: dict[str, str] = {}
+    for item in product_options:
+        share_class = (item.get("share_class") or "").strip()
+        display_name = f"{item.get('name', '')}{f' - {share_class}' if share_class else ''}".strip()
+        for raw_key in (item.get("code"), item.get("sedol"), item.get("slug"), item.get("ticker")):
+            key = str(raw_key or "").strip()
+            if key:
+                key_to_fund_name[key.upper()] = display_name
+
+    def resolve_fund_name(value: str) -> str:
+        token = str(value or "").strip()
+        if not token:
+            return ""
+        return key_to_fund_name.get(token.upper(), "")
+
     mode_col1, mode_col2 = st.columns([2, 1])
     with mode_col1:
         lookthrough_mode = st.toggle("Ultimate Look-Through (Recursive)", value=False, key="portfolio_lookthrough_toggle")
@@ -469,17 +484,22 @@ def run_portfolio_tab(provider: VanguardUKProvider, product_options: list[dict])
             if unresolved:
                 st.info("Could not resolve these lines: " + "; ".join(unresolved))
 
+    display_rows = st.session_state["portfolio_rows"].copy()
+    display_rows["fund_name"] = display_rows["ticker"].map(resolve_fund_name)
+
     edited = st.data_editor(
-        st.session_state["portfolio_rows"],
+        display_rows,
         num_rows="dynamic",
         width="stretch",
         key="portfolio_editor",
+        disabled=["fund_name"],
         column_config={
+            "fund_name": st.column_config.TextColumn("Fund Name"),
             "ticker": st.column_config.TextColumn("Fund Code (ticker/sedol/slug)", help="Example: VGL100A, VAR45GA, B41XG30"),
             "weight_pct": st.column_config.NumberColumn("Portfolio Weight %", min_value=0.0, max_value=1000.0, step=0.1, format="%.2f"),
         },
     )
-    st.session_state["portfolio_rows"] = edited
+    st.session_state["portfolio_rows"] = edited[["ticker", "weight_pct"]].copy()
 
     if st.button("Analyze Portfolio", type="primary", key="portfolio_analyze_btn"):
         if edited.empty:
