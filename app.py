@@ -3,6 +3,8 @@ from __future__ import annotations
 import html
 import re
 import textwrap
+import unicodedata
+from difflib import SequenceMatcher
 
 import altair as alt
 import pandas as pd
@@ -43,9 +45,38 @@ def parse_portfolio_lines(text: str, product_options: list[dict]) -> tuple[pd.Da
     if not text.strip():
         return pd.DataFrame(columns=["ticker", "weight_pct"]), []
 
+    def normalize_lookup_name(value: str) -> str:
+        v = unicodedata.normalize("NFKD", value or "")
+        v = v.replace("\u2013", "-").replace("\u2014", "-")
+        v = v.lower()
+        v = v.replace("gbp", "")
+        v = re.sub(r"[®™]", "", v)
+        v = re.sub(r"[^a-z0-9\s-]", " ", v)
+        v = re.sub(r"\s*[-]\s*", " ", v)
+        v = re.sub(r"\s+", " ", v).strip()
+        return v
+
+    def strip_share_class_suffix(value: str) -> str:
+        # Remove trailing share-class labels from pasted portfolio text.
+        out = re.sub(r"\s*[-–—]?\s*(?:accumulation|income)\s*$", "", value, flags=re.IGNORECASE)
+        out = re.sub(r"\s*[-–—]?\s*(?:hedged\s+)?(?:accumulation|income)\s*$", "", out, flags=re.IGNORECASE)
+        return re.sub(r"\s+", " ", out).strip()
+
     index_by_name: dict[str, list[dict]] = {}
+    searchable_keys: list[tuple[str, dict]] = []
     for item in product_options:
-        index_by_name.setdefault(item["name_norm"], []).append(item)
+        keys = {
+            item.get("name", ""),
+            item.get("label", ""),
+            f"{item.get('name', '')} {item.get('share_class', '')}".strip(),
+            f"{item.get('name', '')} - {item.get('share_class', '')}".strip(" -"),
+        }
+        for key in keys:
+            key_norm = normalize_lookup_name(key)
+            if not key_norm:
+                continue
+            index_by_name.setdefault(key_norm, []).append(item)
+            searchable_keys.append((key_norm, item))
 
     rows: list[dict] = []
     unresolved: list[str] = []
@@ -59,13 +90,26 @@ def parse_portfolio_lines(text: str, product_options: list[dict]) -> tuple[pd.Da
             unresolved.append(line)
             continue
 
-        name_part = re.sub(r"\s+", " ", match.group(1)).strip().lower()
+        raw_name = re.sub(r"\s+", " ", match.group(1)).strip()
+        name_part = normalize_lookup_name(raw_name)
+        name_part_stripped = normalize_lookup_name(strip_share_class_suffix(raw_name))
         weight = float(match.group(2))
         if weight <= 0:
             unresolved.append(line)
             continue
 
-        candidates = index_by_name.get(name_part, [])
+        candidates = index_by_name.get(name_part, []) or index_by_name.get(name_part_stripped, [])
+        if not candidates:
+            best_item = None
+            best_score = 0.0
+            for key_norm, item in searchable_keys:
+                score = SequenceMatcher(None, name_part, key_norm).ratio()
+                if score > best_score:
+                    best_score = score
+                    best_item = item
+            if best_item is not None and best_score >= 0.84:
+                candidates = [best_item]
+
         if not candidates:
             unresolved.append(line)
             continue
