@@ -326,6 +326,30 @@ def render_overlap_heatmap(matrix: pd.DataFrame) -> alt.Chart:
     )
 
 
+def _format_two_fund_table(df: pd.DataFrame) -> pd.DataFrame:
+    out = df.copy()
+
+    pct_cols = ["weight_a", "weight_b", "weight_pct", "overlap_pct", "difference_pct"]
+    for col in pct_cols:
+        if col in out.columns:
+            out[col] = pd.to_numeric(out[col], errors="coerce").map(
+                lambda v: f"{v:.3f}%" if pd.notna(v) else ""
+            )
+
+    out = out.rename(
+        columns={
+            "fund_name": "Fund Name",
+            "weight_a": "%weight (a)",
+            "weight_b": "%weight (b)",
+            "weight_pct": "%Weight",
+            "fund_name_norm": "Fund Name Normalized",
+            "overlap_pct": "%overlap",
+            "difference_pct": "%difference",
+        }
+    )
+    return out
+
+
 def run_two_fund_compare_tab(provider: VanguardUKProvider, product_options: list[dict]) -> None:
     mode_col1, mode_col2 = st.columns([2, 1])
     with mode_col1:
@@ -373,38 +397,39 @@ def run_two_fund_compare_tab(provider: VanguardUKProvider, product_options: list
 
     if st.button("Compare", type="primary", key="pair_compare_btn"):
         try:
-            if lookthrough_mode:
-                a = provider.get_holdings_lookthrough(ticker_a, max_depth=max_depth)
-                b = provider.get_holdings_lookthrough(ticker_b, max_depth=max_depth)
-            else:
-                a = provider.get_holdings(ticker_a)
-                b = provider.get_holdings(ticker_b)
+            with st.spinner("Comparing funds and loading holdings..."):
+                if lookthrough_mode:
+                    a = provider.get_holdings_lookthrough(ticker_a, max_depth=max_depth)
+                    b = provider.get_holdings_lookthrough(ticker_b, max_depth=max_depth)
+                else:
+                    a = provider.get_holdings(ticker_a)
+                    b = provider.get_holdings(ticker_b)
 
-            result = compare_funds(a, b)
-            buckets = compare_by_bucket(a, b)
+                result = compare_funds(a, b)
+                buckets = compare_by_bucket(a, b)
 
             st.subheader("Summary")
             st.html(render_summary_html(result["summary"]))
 
             c1, c2 = st.columns(2)
             with c1:
-                st.subheader(f"{a.ticker} holdings")
-                st.dataframe(a.holdings, width="stretch")
+                st.markdown(f"#### {a.name} (a)")
+                st.dataframe(_format_two_fund_table(a.holdings), width="stretch")
             with c2:
-                st.subheader(f"{b.ticker} holdings")
-                st.dataframe(b.holdings, width="stretch")
+                st.markdown(f"#### {b.name} (b)")
+                st.dataframe(_format_two_fund_table(b.holdings), width="stretch")
 
             st.subheader("Common holdings")
-            st.dataframe(result["common_holdings"], width="stretch")
+            st.dataframe(_format_two_fund_table(result["common_holdings"]), width="stretch")
 
             st.subheader("Bucket overlap")
-            st.dataframe(buckets, width="stretch")
+            st.dataframe(_format_two_fund_table(buckets), width="stretch")
 
-            st.subheader(f"Only in {a.ticker}")
-            st.dataframe(result["only_in_a"], width="stretch")
+            st.subheader(f"Only in {a.name}")
+            st.dataframe(_format_two_fund_table(result["only_in_a"]), width="stretch")
 
-            st.subheader(f"Only in {b.ticker}")
-            st.dataframe(result["only_in_b"], width="stretch")
+            st.subheader(f"Only in {b.name}")
+            st.dataframe(_format_two_fund_table(result["only_in_b"]), width="stretch")
 
         except Exception as exc:
             st.error(f"Failed to compare funds: {exc}")
