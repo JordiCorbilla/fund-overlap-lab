@@ -527,6 +527,23 @@ def run_portfolio_tab(provider: VanguardUKProvider, product_options: list[dict])
 
         analysis = analyze_portfolio(positions)
 
+        label_counts: dict[str, int] = {}
+        for pos in positions:
+            base = (pos.fund.name or "").strip() or pos.fund.ticker
+            label_counts[base] = label_counts.get(base, 0) + 1
+
+        ticker_to_label: dict[str, str] = {}
+        for pos in positions:
+            base = (pos.fund.name or "").strip() or pos.fund.ticker
+            if label_counts.get(base, 0) > 1:
+                ticker_to_label[pos.fund.ticker] = f"{base} ({pos.fund.ticker})"
+            else:
+                ticker_to_label[pos.fund.ticker] = base
+
+        matrix_display = analysis["pairwise_overlap_matrix"].copy()
+        matrix_display.index = [ticker_to_label.get(str(i), str(i)) for i in matrix_display.index]
+        matrix_display.columns = [ticker_to_label.get(str(c), str(c)) for c in matrix_display.columns]
+
         s = analysis["summary"]
         m1, m2, m3, m4 = st.columns(4)
         m1.metric("Funds", value=str(s["fund_count"]))
@@ -535,9 +552,9 @@ def run_portfolio_tab(provider: VanguardUKProvider, product_options: list[dict])
         m4.metric("Weighted OCF", value=(f"{s['weighted_ocf_pct']:.3f}%" if s["weighted_ocf_pct"] is not None else "n/a"))
 
         st.subheader("Pairwise Overlap Matrix")
-        heatmap = render_overlap_heatmap(analysis["pairwise_overlap_matrix"])
+        heatmap = render_overlap_heatmap(matrix_display)
         st.altair_chart(heatmap, width="stretch")
-        st.dataframe(analysis["pairwise_overlap_matrix"].round(4), width="stretch")
+        st.dataframe(matrix_display.round(4), width="stretch")
 
         left, right = st.columns(2)
         with left:
