@@ -9,7 +9,6 @@ from difflib import SequenceMatcher
 import altair as alt
 import pandas as pd
 import streamlit as st
-import streamlit.components.v1 as components
 
 from fund_overlap_lab.compare import analyze_portfolio, compare_by_bucket, compare_funds
 from fund_overlap_lab.models import PortfolioPosition
@@ -385,27 +384,27 @@ def run_two_fund_compare_tab(provider: VanguardUKProvider, product_options: list
             buckets = compare_by_bucket(a, b)
 
             st.subheader("Summary")
-            components.html(render_summary_html(result["summary"]), height=380, scrolling=False)
+            st.html(render_summary_html(result["summary"]))
 
             c1, c2 = st.columns(2)
             with c1:
                 st.subheader(f"{a.ticker} holdings")
-                st.dataframe(a.holdings, use_container_width=True)
+                st.dataframe(a.holdings, width="stretch")
             with c2:
                 st.subheader(f"{b.ticker} holdings")
-                st.dataframe(b.holdings, use_container_width=True)
+                st.dataframe(b.holdings, width="stretch")
 
             st.subheader("Common holdings")
-            st.dataframe(result["common_holdings"], use_container_width=True)
+            st.dataframe(result["common_holdings"], width="stretch")
 
             st.subheader("Bucket overlap")
-            st.dataframe(buckets, use_container_width=True)
+            st.dataframe(buckets, width="stretch")
 
             st.subheader(f"Only in {a.ticker}")
-            st.dataframe(result["only_in_a"], use_container_width=True)
+            st.dataframe(result["only_in_a"], width="stretch")
 
             st.subheader(f"Only in {b.ticker}")
-            st.dataframe(result["only_in_b"], use_container_width=True)
+            st.dataframe(result["only_in_b"], width="stretch")
 
         except Exception as exc:
             st.error(f"Failed to compare funds: {exc}")
@@ -448,7 +447,7 @@ def run_portfolio_tab(provider: VanguardUKProvider, product_options: list[dict])
     edited = st.data_editor(
         st.session_state["portfolio_rows"],
         num_rows="dynamic",
-        use_container_width=True,
+        width="stretch",
         key="portfolio_editor",
         column_config={
             "ticker": st.column_config.TextColumn("Fund Code (ticker/sedol/slug)", help="Example: VGL100A, VAR45GA, B41XG30"),
@@ -512,8 +511,8 @@ def run_portfolio_tab(provider: VanguardUKProvider, product_options: list[dict])
 
         st.subheader("Pairwise Overlap Matrix")
         heatmap = render_overlap_heatmap(analysis["pairwise_overlap_matrix"])
-        st.altair_chart(heatmap, use_container_width=True)
-        st.dataframe(analysis["pairwise_overlap_matrix"].round(4), use_container_width=True)
+        st.altair_chart(heatmap, width="stretch")
+        st.dataframe(analysis["pairwise_overlap_matrix"].round(4), width="stretch")
 
         left, right = st.columns(2)
         with left:
@@ -534,8 +533,8 @@ def run_portfolio_tab(provider: VanguardUKProvider, product_options: list[dict])
                     )
                     .properties(height=420)
                 )
-                st.altair_chart(bar, use_container_width=True)
-            st.dataframe(top_underlying, use_container_width=True)
+                st.altair_chart(bar, width="stretch")
+            st.dataframe(top_underlying, width="stretch")
 
         with right:
             st.subheader("Bucket Exposures")
@@ -555,8 +554,8 @@ def run_portfolio_tab(provider: VanguardUKProvider, product_options: list[dict])
                     )
                     .properties(height=420)
                 )
-                st.altair_chart(bar_b, use_container_width=True)
-            st.dataframe(buckets, use_container_width=True)
+                st.altair_chart(bar_b, width="stretch")
+            st.dataframe(buckets, width="stretch")
 
 provider = VanguardUKProvider()
 product_options = load_product_options()
