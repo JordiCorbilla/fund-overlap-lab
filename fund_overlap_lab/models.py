@@ -15,3 +15,9 @@ class FundHoldings:
     holdings: pd.DataFrame
     risk_level: Optional[int] = None
     ocf: Optional[str] = None
+
+
+@dataclass
+class PortfolioPosition:
+    fund: FundHoldings
+    portfolio_weight: float
