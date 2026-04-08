@@ -38,11 +38,12 @@ class VanguardUKProvider:
 
     API_BASE = "https://www.vanguardinvestor.co.uk/api"
     GPX_PATH = "/gpx/graphql"
+    EXPANDABLE_SECURITY_TYPES = {"MF.MF", "EQ.ETF", "FI.IP"}
 
     UNDERLYING_ALLOCATIONS_QUERY = """
-query UnderlyingAllocationsQuery($portIds: [String!]!) {
+query HoldingDetailsQuery($portIds: [String!], $securityTypes: [String!], $lastItemKey: String) {
     borHoldings(portIds: $portIds) {
-        holdings(limit: 1500, securityTypes: [\"MF.MF\", \"EQ.ETF\", \"FI.IP\"]) {
+        holdings(limit: 1500, securityTypes: $securityTypes, lastItemKey: $lastItemKey) {
             items {
                 issuerName
                 securityType
@@ -103,15 +104,79 @@ query UnderlyingFundNamesQuery($sedols: [String!]) {
                     as_of = str(api_fallback["as_of"])
 
         holdings["fund_name_norm"] = holdings["fund_name"].map(normalize_fund_name)
+        output_cols = ["fund_name", "weight_pct", "fund_name_norm"]
+        for extra in ("security_type", "sedol1"):
+            if extra in holdings.columns:
+                output_cols.append(extra)
 
         return FundHoldings(
             ticker=ticker,
             name=name,
             source_url=url,
             as_of=as_of,
-            holdings=holdings[["fund_name", "weight_pct", "fund_name_norm"]].copy(),
+            holdings=holdings[output_cols].copy(),
             risk_level=risk_level,
             ocf=ocf,
+        )
+
+    def get_holdings_lookthrough(self, ticker: str, max_depth: int = 4) -> FundHoldings:
+        root = self.get_holdings(ticker)
+
+        def expand_rows(code: str, parent_weight: float, depth: int, path: set[str], cache: dict[str, FundHoldings]) -> list[dict]:
+            if code in cache:
+                fund = cache[code]
+            else:
+                fund = self.get_holdings(code)
+                cache[code] = fund
+
+            rows: list[dict] = []
+            for row in fund.holdings.itertuples(index=False):
+                name = str(getattr(row, "fund_name", "")).strip()
+                weight = float(getattr(row, "weight_pct", 0.0))
+                sec_type = str(getattr(row, "security_type", "") or "").strip()
+                sedol = str(getattr(row, "sedol1", "") or "").strip().upper()
+                if weight <= 0 or not name:
+                    continue
+
+                combined_weight = parent_weight * weight / 100.0
+                can_expand = (
+                    depth < max_depth
+                    and sedol
+                    and sec_type in self.EXPANDABLE_SECURITY_TYPES
+                    and sedol not in path
+                )
+
+                if can_expand:
+                    try:
+                        rows.extend(expand_rows(sedol, combined_weight, depth + 1, path | {sedol}, cache))
+                        continue
+                    except Exception:
+                        pass
+
+                rows.append({"fund_name": name, "weight_pct": combined_weight})
+            return rows
+
+        expanded = expand_rows(root.ticker, 100.0, 0, {root.ticker}, {root.ticker: root})
+        if not expanded:
+            return root
+
+        out = pd.DataFrame(expanded)
+        out = (
+            out.groupby("fund_name", as_index=False)["weight_pct"]
+            .sum()
+            .sort_values("weight_pct", ascending=False)
+            .reset_index(drop=True)
+        )
+        out["fund_name_norm"] = out["fund_name"].map(normalize_fund_name)
+
+        return FundHoldings(
+            ticker=root.ticker,
+            name=root.name,
+            source_url=root.source_url,
+            as_of=root.as_of,
+            holdings=out[["fund_name", "weight_pct", "fund_name_norm"]].copy(),
+            risk_level=root.risk_level,
+            ocf=root.ocf,
         )
 
     def list_products(self) -> list[dict]:
@@ -231,9 +296,13 @@ query UnderlyingFundNamesQuery($sedols: [String!]) {
 
         try:
             allocations_payload = {
-                "operationName": "UnderlyingAllocationsQuery",
+                "operationName": "HoldingDetailsQuery",
                 "query": self.UNDERLYING_ALLOCATIONS_QUERY,
-                "variables": {"portIds": [str(port_id)]},
+                "variables": {
+                    "portIds": [str(port_id)],
+                    "securityTypes": None,
+                    "lastItemKey": None,
+                },
             }
             allocations = self._post_json(gpx_url, allocations_payload)
         except Exception:
@@ -291,7 +360,8 @@ query UnderlyingFundNamesQuery($sedols: [String!]) {
             return None
 
         # Aggregate any duplicate rows after name normalization.
-        out = out.groupby("fund_name", as_index=False)["weight_pct"].sum()
+        group_cols = ["fund_name", "security_type", "sedol1"]
+        out = out.groupby(group_cols, as_index=False, dropna=False)["weight_pct"].sum()
         out = out.sort_values("weight_pct", ascending=False).reset_index(drop=True)
 
         return {

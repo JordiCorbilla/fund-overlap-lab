@@ -284,6 +284,15 @@ def render_overlap_heatmap(matrix: pd.DataFrame) -> alt.Chart:
 
 
 def run_two_fund_compare_tab(provider: VanguardUKProvider, product_options: list[dict]) -> None:
+    mode_col1, mode_col2 = st.columns([2, 1])
+    with mode_col1:
+        lookthrough_mode = st.toggle("Ultimate Look-Through (Recursive)", value=False, key="pair_lookthrough_toggle")
+    with mode_col2:
+        max_depth = st.slider("Max Depth", min_value=1, max_value=6, value=4, step=1, key="pair_max_depth")
+
+    if lookthrough_mode:
+        st.info("Ultimate mode recursively expands fund-of-funds/ETF layers into deeper constituents where data is available.")
+
     use_picker = st.toggle("Use All Vanguard Products Picker", value=bool(product_options), key="pair_picker_toggle")
 
     if use_picker and product_options:
@@ -321,8 +330,12 @@ def run_two_fund_compare_tab(provider: VanguardUKProvider, product_options: list
 
     if st.button("Compare", type="primary", key="pair_compare_btn"):
         try:
-            a = provider.get_holdings(ticker_a)
-            b = provider.get_holdings(ticker_b)
+            if lookthrough_mode:
+                a = provider.get_holdings_lookthrough(ticker_a, max_depth=max_depth)
+                b = provider.get_holdings_lookthrough(ticker_b, max_depth=max_depth)
+            else:
+                a = provider.get_holdings(ticker_a)
+                b = provider.get_holdings(ticker_b)
 
             result = compare_funds(a, b)
             buckets = compare_by_bucket(a, b)
@@ -356,6 +369,15 @@ def run_two_fund_compare_tab(provider: VanguardUKProvider, product_options: list
 
 def run_portfolio_tab(provider: VanguardUKProvider, product_options: list[dict]) -> None:
     st.caption("Analyze 3-12+ funds together and see overlap matrix plus weighted portfolio exposures.")
+
+    mode_col1, mode_col2 = st.columns([2, 1])
+    with mode_col1:
+        lookthrough_mode = st.toggle("Ultimate Look-Through (Recursive)", value=False, key="portfolio_lookthrough_toggle")
+    with mode_col2:
+        max_depth = st.slider("Max Depth", min_value=1, max_value=6, value=4, step=1, key="portfolio_max_depth")
+
+    if lookthrough_mode:
+        st.info("Ultimate mode recursively expands fund-of-funds/ETF layers into deeper constituents where data is available.")
 
     if "portfolio_rows" not in st.session_state:
         st.session_state["portfolio_rows"] = pd.DataFrame(
@@ -421,7 +443,10 @@ def run_portfolio_tab(provider: VanguardUKProvider, product_options: list[dict])
         with st.spinner("Fetching holdings for portfolio funds..."):
             for row in rows.itertuples(index=False):
                 try:
-                    fund = provider.get_holdings(row.ticker)
+                    if lookthrough_mode:
+                        fund = provider.get_holdings_lookthrough(row.ticker, max_depth=max_depth)
+                    else:
+                        fund = provider.get_holdings(row.ticker)
                     positions.append(PortfolioPosition(fund=fund, portfolio_weight=float(row.weight_pct)))
                 except Exception as exc:
                     errors.append(f"{row.ticker}: {exc}")
